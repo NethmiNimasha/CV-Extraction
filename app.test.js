@@ -50,4 +50,36 @@ describe('CV Extraction Service', () => {
     expect(res.body.text).toEqual('Extracted DOCX text');
     expect(mammoth.extractRawText).toHaveBeenCalled();
   });
+
+  it('should save a candidate profile', async () => {
+    const profile = {
+      name: 'John Doe',
+      email: 'john@example.com',
+      skills: ['React', 'Node.js'],
+      education: ['BSc CS'],
+      experience: ['Developer']
+    };
+
+    const res = await request(app)
+      .post('/profile')
+      .send(profile);
+
+    expect(res.statusCode).toEqual(201);
+    expect(res.body.message).toEqual('Profile saved successfully');
+    expect(res.body.profile.id).toBeDefined();
+    expect(res.body.profile.name).toEqual('John Doe');
+  });
+
+  it('should reject a profile without name and email', async () => {
+    const profile = {
+      skills: ['React']
+    };
+
+    const res = await request(app)
+      .post('/profile')
+      .send(profile);
+
+    expect(res.statusCode).toEqual(400);
+    expect(res.body.error).toEqual('Profile must have at least a name or email');
+  });
 });

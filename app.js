@@ -2,8 +2,14 @@ const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
+const http = require('http');
 
 const app = express();
+app.use(express.json());
+app.use(express.static('public'));
+
+const profiles = [];
+
 
 // Configure multer
 const storage = multer.memoryStorage();
@@ -60,5 +66,62 @@ app.post('/extract', (req, res) => {
     }
   });
 });
+
+app.post('/parse', (req, res) => {
+  const text = req.body.text;
+  if (!text) {
+    return res.status(400).json({ error: 'No text provided' });
+  }
+
+  const postData = JSON.stringify({ text });
+  const options = {
+    hostname: 'localhost',
+    port: 8000,
+    path: '/parse',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+
+  const pythonReq = http.request(options, (pythonRes) => {
+    let data = '';
+    pythonRes.on('data', (chunk) => { data += chunk; });
+    pythonRes.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        res.status(pythonRes.statusCode).json(parsed);
+      } catch (e) {
+        res.status(500).json({ error: 'Invalid response from NLP service' });
+      }
+    });
+  });
+
+  pythonReq.on('error', (e) => {
+    console.error(`Problem with NLP request: ${e.message}`);
+    res.status(500).json({ error: 'Failed to connect to NLP service' });
+  });
+
+  pythonReq.write(postData);
+  pythonReq.end();
+});
+
+app.post('/profile', (req, res) => {
+  const profile = req.body;
+  if (!profile.name && !profile.email) {
+    return res.status(400).json({ error: 'Profile must have at least a name or email' });
+  }
+  
+  profile.id = profiles.length + 1;
+  profiles.push(profile);
+  
+  res.status(201).json({ message: 'Profile saved successfully', profile });
+});
+
+app.get('/profiles', (req, res) => {
+  res.status(200).json(profiles);
+});
+
 
 module.exports = app;
