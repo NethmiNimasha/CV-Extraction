@@ -37,20 +37,74 @@ def extract_skills(text):
     return list(extracted_skills)
 
 def extract_education(text):
-    # Basic keyword extraction for education
-    education_keywords = ["bachelor", "master", "phd", "b.sc", "m.sc", "b.a", "m.a", "university", "college", "institute", "degree"]
+    education_headers = ["education", "academic background", "academic history", "qualifications"]
+    other_headers = ["experience", "work experience", "employment", "skills", "projects", "certifications", "languages", "summary", "profile", "achievements", "references"]
     
     lines = text.split('\n')
     education_lines = []
+    in_education_section = False
+    
+    def is_contact_info(line):
+        line_lower = line.lower()
+        # Ignore emails
+        if "@" in line and "." in line:
+            return True
+        # Ignore phone numbers (heuristics: 8+ digits with spaces/dashes)
+        import re
+        if re.search(r'[\+\(]?[0-9][0-9 .\-\(\)]{7,}[0-9]', line):
+            return True
+        # Ignore addresses with street keywords
+        address_keywords = ['street', ' st.', ' st,', 'avenue', ' ave.', ' ave,', 'road', ' rd.', ' rd,', 'boulevard', 'blvd', 'lane', ' ln.', ' ln,', 'drive', ' dr.', ' dr,', 'apartment', 'apt.', 'po box', 'p.o. box', 'suite', 'highway', 'hwy']
+        if any(kw in line_lower for kw in address_keywords) and any(char.isdigit() for char in line):
+            return True
+            
+        # Ignore lines that are very short and contain common address patterns (e.g. "City, State Zip" or "City, Country")
+        # Example: "New York, NY 10001", "Colombo, Sri Lanka", "London, UK"
+        # If the line is under 40 characters, contains a comma, and doesn't contain education degree keywords
+        degree_kws = ['bachelor', 'master', 'phd', 'b.sc', 'm.sc', 'b.a', 'm.a', 'degree']
+        if len(line.strip()) < 40 and ',' in line and not any(dk in line_lower for dk in degree_kws):
+            # Check if it looks like a location (words separated by commas, maybe numbers)
+            # This is aggressive but usually effective for removing random address lines like "Kandy, Central Province"
+            return True
+            
+        return False
     
     for line in lines:
-        if any(keyword in line.lower() for keyword in education_keywords):
+        line_clean = line.strip().lower()
+        
+        # Check if this line is a section header
+        if any(header == line_clean or header + ":" == line_clean for header in education_headers):
+            in_education_section = True
+            continue
+            
+        # Check if we hit another section header
+        if in_education_section and any(header == line_clean or header + ":" == line_clean for header in other_headers):
+            in_education_section = False
+            break
+            
+        if in_education_section and line.strip():
+            if is_contact_info(line):
+                continue
             education_lines.append(line.strip())
             
-    return education_lines
+    # If a structured section was found, return it
+    if education_lines:
+        return education_lines
+        
+    # Fallback: Basic keyword extraction, but strictly ignore contact info
+    education_keywords = ["bachelor", "master", "phd", "b.sc", "m.sc", "b.a", "m.a", "university", "college", "institute", "degree"]
+    fallback_lines = []
+    
+    for line in lines:
+        if is_contact_info(line):
+            continue
+        if any(keyword in line.lower() for keyword in education_keywords):
+            fallback_lines.append(line.strip())
+            
+    return fallback_lines
 
 def extract_experience(text):
-    experience_headers = ["experience", "work experience", "employment", "employment history", "professional experience"]
+    experience_headers = ["experience", "work experience", "employment", "employment history", "professional experience", "intern"]
     other_headers = ["education", "skills", "projects", "certifications", "languages", "summary", "profile", "achievements", "references"]
     
     lines = text.split('\n')
