@@ -50,17 +50,41 @@ def extract_education(text):
     return education_lines
 
 def extract_experience(text):
-    # Basic keyword extraction for experience
-    experience_keywords = ["experience", "work", "job", "role", "developer", "engineer", "manager", "intern"]
+    experience_headers = ["experience", "work experience", "employment", "employment history", "professional experience"]
+    other_headers = ["education", "skills", "projects", "certifications", "languages", "summary", "profile", "achievements", "references"]
     
     lines = text.split('\n')
     experience_lines = []
+    in_experience_section = False
     
     for line in lines:
-        if any(keyword in line.lower() for keyword in experience_keywords):
+        line_clean = line.strip().lower()
+        
+        # Check if this line is a section header (exact match or with colon)
+        if any(header == line_clean or header + ":" == line_clean for header in experience_headers):
+            in_experience_section = True
+            continue
+            
+        # Check if we hit another section header, meaning experience section is over
+        if in_experience_section and any(header == line_clean or header + ":" == line_clean for header in other_headers):
+            in_experience_section = False
+            break
+            
+        if in_experience_section and line.strip():
             experience_lines.append(line.strip())
             
-    return experience_lines
+    # If a structured section was found, return it
+    if experience_lines:
+        return experience_lines
+        
+    # Fallback: Look for lines with a year (e.g. 2019, 2020) and a job title keyword
+    import re
+    fallback_lines = []
+    for line in lines:
+        if re.search(r'(20\d{2}|19\d{2})', line) and any(kw in line.lower() for kw in ["developer", "engineer", "manager", "analyst", "intern", "consultant", "director", "lead"]):
+            fallback_lines.append(line.strip())
+            
+    return fallback_lines
 
 def parse_cv(text):
     return {
